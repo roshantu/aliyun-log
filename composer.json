@@ -8,6 +8,7 @@
             "email": "aliyun@aliyun.com"
         }
     ],
+    "minimum-stability": "stable",
     "require": {
         "php":">=5.3"
     },
