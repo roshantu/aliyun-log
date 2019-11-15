@@ -3,15 +3,17 @@
  * Copyright (C) Alibaba Cloud Computing
  * All rights reserved
  */
+namespace AliCloud\Log\Models\Request;
 
-require_once realpath(dirname(__FILE__) . '/Request.php');
+use AliCloud\Log\Models\Request\Request;
+
 
 /**
  * The request used to get logs by a query from log service.
  *
  * @author log service dev
  */
-class Aliyun_Log_Models_GetLogsRequest extends Aliyun_Log_Models_Request {
+class GetLogsRequest extends Request {
     
     /**
      * @var string logstore name
@@ -54,7 +56,7 @@ class Aliyun_Log_Models_GetLogsRequest extends Aliyun_Log_Models_Request {
     private $reverse;
     
     /**
-     * Aliyun_Log_Models_GetLogsRequest Constructor
+     * GetLogsRequest Constructor
      *
      * @param string $project
      *            project name

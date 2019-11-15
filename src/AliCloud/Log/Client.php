@@ -3,12 +3,15 @@
  * Copyright (C) Alibaba Cloud Computing
  * All rights reserved
  */
-date_default_timezone_set ( 'Asia/Shanghai' );
 
-require_once realpath ( dirname ( __FILE__ ) . '/../../Log_Autoload.php' );
-require_once realpath ( dirname ( __FILE__ ) . '/requestcore.class.php' );
-require_once realpath ( dirname ( __FILE__ ) . '/sls.proto.php' );
-require_once realpath ( dirname ( __FILE__ ) . '/protocolbuffers.inc.php' );
+namespace AliCloud\Log;
+
+use AliCloud\Log\RequestCore;
+use AliCloud\Log\SlsProto;
+use AliCloud\Log\ProtocolBuffer;
+use AliCloud\Log\Util;
+use AliCloud\Log\Models\Request\GetLogsRequest;
+use AliCloud\Log\Exception;
 
 if(!defined('API_VERSION'))
     define('API_VERSION', '0.6.0');
@@ -21,7 +24,7 @@ if(!defined('USER_AGENT'))
  *
  * @author log_dev
  */
-class Aliyun_Log_Client {
+class Client {
 
     /**
      * @var string aliyun accessKey
@@ -78,7 +81,7 @@ class Aliyun_Log_Client {
         $this->accessKeyId = $accessKeyId;
         $this->accessKey = $accessKey;
         $this->stsToken = $token;
-        $this->source = Aliyun_Log_Util::getLocalIp();
+        $this->source = Util::getLocalIp();
     }
     private function setEndpoint($endpoint) {
         $pos = strpos ( $endpoint, "://" );
@@ -95,7 +98,7 @@ class Aliyun_Log_Client {
             $endpoint = substr ( $endpoint, 0, $pos );
         } else
             $this->port = 80;
-        $this->isRowIp = Aliyun_Log_Util::isIp ( $endpoint );
+        $this->isRowIp = Util::isIp ( $endpoint );
         $this->logHost = $endpoint;
         $this->endpoint = $endpoint . ':' . ( string ) $this->port;
     }
@@ -112,10 +115,10 @@ class Aliyun_Log_Client {
 
     /**
      * Decodes a JSON string to a JSON Object. 
-     * Unsuccessful decode will cause an Aliyun_Log_Exception.
+     * Unsuccessful decode will cause an Exception.
      * 
      * @return string
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      */
     protected function parseToJson($resBody, $requestId) {
         if (! $resBody)
@@ -123,7 +126,7 @@ class Aliyun_Log_Client {
         
         $result = json_decode ( $resBody, true );
         if ($result === NULL){
-          throw new Aliyun_Log_Exception ( 'BadResponse', "Bad format,not json: $resBody", $requestId );
+          throw new Exception ( 'BadResponse', "Bad format,not json: $resBody", $requestId );
         }
         return $result;
     }
@@ -149,14 +152,14 @@ class Aliyun_Log_Client {
     
     /**
      * @return array
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      */
     private function sendRequest($method, $url, $body, $headers) {
         try {
             list ( $responseCode, $header, $resBody ) = 
                     $this->getHttpResponse ( $method, $url, $body, $headers );
         } catch ( Exception $ex ) {
-            throw new Aliyun_Log_Exception ( $ex->getMessage (), $ex->__toString () );
+            throw new Exception ( $ex->getMessage (), $ex->__toString () );
         }
         
         $requestId = isset ( $header ['x-log-requestid'] ) ? $header ['x-log-requestid'] : '';
@@ -167,7 +170,7 @@ class Aliyun_Log_Client {
         else {
             $exJson = $this->parseToJson ( $resBody, $requestId );
             if (isset($exJson ['error_code']) && isset($exJson ['error_message'])) {
-                throw new Aliyun_Log_Exception ( $exJson ['error_code'], 
+                throw new Exception ( $exJson ['error_code'], 
                         $exJson ['error_message'], $requestId );
             } else {
                 if ($exJson) {
@@ -175,7 +178,7 @@ class Aliyun_Log_Client {
                 } else {
                     $exJson = '';
                 }
-                throw new Aliyun_Log_Exception ( 'RequestError',
+                throw new Exception ( 'RequestError',
                         "Request is failed. Http code is $responseCode.$exJson", $requestId );
             }
         }
@@ -183,14 +186,14 @@ class Aliyun_Log_Client {
     
     /**
      * @return array
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      */
     private function send($method, $project, $body, $resource, $params, $headers) {
         if ($body) {
             $headers ['Content-Length'] = strlen ( $body );
             if(isset($headers ["x-log-bodyrawsize"])==false)
                 $headers ["x-log-bodyrawsize"] = 0;
-            $headers ['Content-MD5'] = Aliyun_Log_Util::calMD5 ( $body );
+            $headers ['Content-MD5'] = Util::calMD5 ( $body );
         } else {
             $headers ['Content-Length'] = 0;
             $headers ["x-log-bodyrawsize"] = 0;
@@ -204,12 +207,12 @@ class Aliyun_Log_Client {
         if(is_null($project))$headers ['Host'] = $this->logHost;
         else $headers ['Host'] = "$project.$this->logHost";
         $headers ['Date'] = $this->GetGMT ();
-        $signature = Aliyun_Log_Util::getRequestAuthorization ( $method, $resource, $this->accessKey,$this->stsToken, $params, $headers );
+        $signature = Util::getRequestAuthorization ( $method, $resource, $this->accessKey,$this->stsToken, $params, $headers );
         $headers ['Authorization'] = "LOG $this->accessKeyId:$signature";
         
         $url = $resource;
         if ($params)
-            $url .= '?' . Aliyun_Log_Util::urlEncode ( $params );
+            $url .= '?' . Util::urlEncode ( $params );
         if ($this->isRowIp)
             $url = "http://$this->endpoint$url";
         else{
@@ -222,15 +225,15 @@ class Aliyun_Log_Client {
     
     /**
      * Put logs to Log Service.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_PutLogsRequest $request the PutLogs request parameters class
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_PutLogsResponse
      */
     public function putLogs(Aliyun_Log_Models_PutLogsRequest $request) {
         if (count ( $request->getLogitems () ) > 4096)
-            throw new Aliyun_Log_Exception ( 'InvalidLogSize', "logItems' length exceeds maximum limitation: 4096 lines." );
+            throw new Exception ( 'InvalidLogSize', "logItems' length exceeds maximum limitation: 4096 lines." );
         
         $logGroup = new LogGroup ();
         $topic = $request->getTopic () !== null ? $request->getTopic () : '';
@@ -255,12 +258,12 @@ class Aliyun_Log_Client {
             $logGroup->addLogs ( $log );
         }
 
-        $body = Aliyun_Log_Util::toBytes( $logGroup );
+        $body = Util::toBytes( $logGroup );
         unset ( $logGroup );
         
         $bodySize = strlen ( $body );
         if ($bodySize > 3 * 1024 * 1024) // 3 MB
-            throw new Aliyun_Log_Exception ( 'InvalidLogSize', "logItems' size exceeds maximum limitation: 3 MB." );
+            throw new Exception ( 'InvalidLogSize', "logItems' size exceeds maximum limitation: 3 MB." );
         $params = array ();
         $headers = array ();
         $headers ["x-log-bodyrawsize"] = $bodySize;
@@ -435,10 +438,10 @@ class Aliyun_Log_Client {
 
     /**
      * create logstore 
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_CreateLogstoreRequest $request the CreateLogStore request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * return Aliyun_Log_Models_CreateLogstoreResponse
      */
     public function createLogstore(Aliyun_Log_Models_CreateLogstoreRequest $request){
@@ -462,10 +465,10 @@ class Aliyun_Log_Client {
     }
     /**
      * update logstore 
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_UpdateLogstoreRequest $request the UpdateLogStore request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * return Aliyun_Log_Models_UpdateLogstoreResponse
      */
     public function updateLogstore(Aliyun_Log_Models_UpdateLogstoreRequest $request){
@@ -488,10 +491,10 @@ class Aliyun_Log_Client {
     }
     /**
      * List all logstores of requested project.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_ListLogstoresRequest $request the ListLogstores request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_ListLogstoresResponse
      */
     public function listLogstores(Aliyun_Log_Models_ListLogstoresRequest $request) {
@@ -507,10 +510,10 @@ class Aliyun_Log_Client {
 
     /**
      * Delete logstore
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_DeleteLogstoreRequest $request the DeleteLogstores request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_DeleteLogstoresResponse
      */
     public function deleteLogstore(Aliyun_Log_Models_DeleteLogstoreRequest $request) {
@@ -527,10 +530,10 @@ class Aliyun_Log_Client {
 
     /**
      * List all topics in a logstore.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_ListTopicsRequest $request the ListTopics request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_ListTopicsResponse
      */
     public function listTopics(Aliyun_Log_Models_ListTopicsRequest $request) {
@@ -552,10 +555,10 @@ class Aliyun_Log_Client {
 
     /**
      * Get histograms of requested query from log service.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_GetHistogramsRequest $request the GetHistograms request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return array(json body, http header)
      */
     public function getHistogramsJson(Aliyun_Log_Models_GetHistogramsRequest $request) {
@@ -581,10 +584,10 @@ class Aliyun_Log_Client {
     
     /**
      * Get histograms of requested query from log service.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_GetHistogramsRequest $request the GetHistograms request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_GetHistogramsResponse
      */
     public function getHistograms(Aliyun_Log_Models_GetHistogramsRequest $request) {
@@ -596,13 +599,13 @@ class Aliyun_Log_Client {
 
     /**
      * Get logs from Log service.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
-     * @param Aliyun_Log_Models_GetLogsRequest $request the GetLogs request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @param GetLogsRequest $request the GetLogs request parameters class.
+     * @throws Exception
      * @return array(json body, http header)
      */
-    public function getLogsJson(Aliyun_Log_Models_GetLogsRequest $request) {
+    public function getLogsJson(GetLogsRequest $request) {
         $headers = array ();
         $params = array ();
         if ($request->getTopic () !== null)
@@ -632,13 +635,13 @@ class Aliyun_Log_Client {
     
     /**
      * Get logs from Log service.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
-     * @param Aliyun_Log_Models_GetLogsRequest $request the GetLogs request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @param GetLogsRequest $request the GetLogs request parameters class.
+     * @throws Exception
      * @return Aliyun_Log_Models_GetLogsResponse
      */
-    public function getLogs(Aliyun_Log_Models_GetLogsRequest $request) {
+    public function getLogs(GetLogsRequest $request) {
         $ret = $this->getLogsJson($request);
         $resp = $ret[0];
         $header = $ret[1];
@@ -647,10 +650,10 @@ class Aliyun_Log_Client {
 
     /**
      * Get logs from Log service.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_GetProjectLogsRequest $request the GetLogs request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return array(json body, http header)
      */
     public function getProjectLogsJson(Aliyun_Log_Models_GetProjectLogsRequest $request) {
@@ -668,10 +671,10 @@ class Aliyun_Log_Client {
     }
      /**
      * Get logs from Log service.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_GetProjectLogsRequest $request the GetLogs request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_GetLogsResponse
      */
     public function getProjectLogs(Aliyun_Log_Models_GetProjectLogsRequest $request) {
@@ -683,10 +686,10 @@ class Aliyun_Log_Client {
     
     /**
      * Get logs from Log service with shardid conditions.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_BatchGetLogsRequest $request the BatchGetLogs request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_BatchGetLogsResponse
      */
     public function batchGetLogs(Aliyun_Log_Models_BatchGetLogsRequest $request) {
@@ -719,10 +722,10 @@ class Aliyun_Log_Client {
 
     /**
      * List Shards from Log service with Project and logstore conditions.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_ListShardsRequest $request the ListShards request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_ListShardsResponse
      */
     public function listShards(Aliyun_Log_Models_ListShardsRequest $request) {
@@ -740,10 +743,10 @@ class Aliyun_Log_Client {
 
     /**
      * split a shard into two shards  with Project and logstore and shardId and midHash conditions.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_SplitShardRequest $request the SplitShard request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_ListShardsResponse
      */
     public function splitShard(Aliyun_Log_Models_SplitShardRequest $request) {
@@ -764,10 +767,10 @@ class Aliyun_Log_Client {
     }
     /**
      * merge two shards into one shard with Project and logstore and shardId and conditions.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_MergeShardsRequest $request the MergeShards request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_ListShardsResponse
      */
     public function MergeShards(Aliyun_Log_Models_MergeShardsRequest $request) {
@@ -786,10 +789,10 @@ class Aliyun_Log_Client {
     }
     /**
      * delete a read only shard with Project and logstore and shardId conditions.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_DeleteShardRequest $request the DeleteShard request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_ListShardsResponse
      */
     public function DeleteShard(Aliyun_Log_Models_DeleteShardRequest $request) {
@@ -807,10 +810,10 @@ class Aliyun_Log_Client {
 
     /**
      * Get cursor from Log service.
-     * Unsuccessful opertaion will cause an Aliyun_Log_Exception.
+     * Unsuccessful opertaion will cause an Exception.
      *
      * @param Aliyun_Log_Models_GetCursorRequest $request the GetCursor request parameters class.
-     * @throws Aliyun_Log_Exception
+     * @throws Exception
      * @return Aliyun_Log_Models_GetCursorResponse
      */
     public function getCursor(Aliyun_Log_Models_GetCursorRequest $request){
@@ -824,14 +827,14 @@ class Aliyun_Log_Client {
 
       if((empty($mode) xor $fromTime==-1)==false){
         if(!empty($mode))
-          throw new Aliyun_Log_Exception ( 'RequestError',"Request is failed. Mode and fromTime can not be not empty simultaneously");
+          throw new Exception ( 'RequestError',"Request is failed. Mode and fromTime can not be not empty simultaneously");
         else
-          throw new Aliyun_Log_Exception ( 'RequestError',"Request is failed. Mode and fromTime can not be empty simultaneously");
+          throw new Exception ( 'RequestError',"Request is failed. Mode and fromTime can not be empty simultaneously");
       }
       if(!empty($mode) && strcmp($mode,'begin')!==0 && strcmp($mode,'end')!==0)
-        throw new Aliyun_Log_Exception ( 'RequestError',"Request is failed. Mode value invalid:$mode");
+        throw new Exception ( 'RequestError',"Request is failed. Mode value invalid:$mode");
       if($fromTime!==-1 && (is_integer($fromTime)==false || $fromTime<0))
-        throw new Aliyun_Log_Exception ( 'RequestError',"Request is failed. FromTime value invalid:$fromTime");
+        throw new Exception ( 'RequestError',"Request is failed. FromTime value invalid:$fromTime");
       $params['type']='cursor';
       if($fromTime!==-1)$params['from']=$fromTime;
       else $params['mode'] = $mode;

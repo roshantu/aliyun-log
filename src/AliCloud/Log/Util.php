@@ -4,8 +4,9 @@
  * Copyright (C) Alibaba Cloud Computing
  * All rights reserved
  */
+namespace AliCloud\Log;
 
-class Aliyun_Log_Util {
+class Util {
 
     /**
      * Get the local machine ip address.
@@ -110,7 +111,7 @@ class Aliyun_Log_Util {
         $url = "";
         $first = true;
         foreach ( $params as $key => $value ) {
-            $val = Aliyun_Log_Util::urlEncodeValue ( $value );
+            $val = Util::urlEncodeValue ( $value );
             if ($first) {
                 $first = false;
                 $url = "$key=$val";
@@ -178,9 +179,9 @@ class Aliyun_Log_Util {
             $content .= $headers ['Content-Type'];
         $content .= "\n";
         $content .= $headers ['Date'] . "\n";
-        $content .= Aliyun_Log_Util::canonicalizedLOGHeaders ( $headers ) . "\n";
-        $content .= Aliyun_Log_Util::canonicalizedResource ( $resource, $params );
-        return Aliyun_Log_Util::hmacSHA1 ( $content, $key );
+        $content .= Util::canonicalizedLOGHeaders ( $headers ) . "\n";
+        $content .= Util::canonicalizedResource ( $resource, $params );
+        return Util::hmacSHA1 ( $content, $key );
     }
 
 }

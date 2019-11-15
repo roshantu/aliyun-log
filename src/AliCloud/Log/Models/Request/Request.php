@@ -3,13 +3,13 @@
  * Copyright (C) Alibaba Cloud Computing
  * All rights reserved
  */
-
+namespace AliCloud\Log\Models\Request;
 /**
  * The base request of all log request.
  *
  * @author log service dev
  */
-class Aliyun_Log_Models_Request {
+class Request {
 
     /**
      * @var string project name

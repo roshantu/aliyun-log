@@ -3,15 +3,15 @@
  * Copyright (C) Alibaba Cloud Computing
  * All rights reserved
  */
-
-require_once realpath(dirname(__FILE__) . '/Request.php');
+namespace AliCloud\Log\Models\Request;
+use AliCloud\Log\Models\Request\Request;
 
 /**
  * 
  *
  * @author log service dev
  */
-class Aliyun_Log_Models_GetACLRequest extends Aliyun_Log_Models_Request {
+class GetACLRequest extends Request {
     
     private $aclId;
     /**

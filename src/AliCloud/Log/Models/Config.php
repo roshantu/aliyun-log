@@ -4,7 +4,9 @@
  * All rights reserved
  */
 
-class Aliyun_Log_Models_Config_InputDetail {
+namespace AliCloud\Log\Models;
+
+class Config {
   public $filePattern;
   public $key;
   public $localStorage;
