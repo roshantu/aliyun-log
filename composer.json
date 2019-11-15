@@ -1,6 +1,7 @@
 {
     "name": "alicloud/log",
     "type": "library",
+    "license": "MIT",
     "authors": [
         {
             "name": "aliyun",
